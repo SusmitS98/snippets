@@ -80,3 +80,46 @@ def save_object_s3(object, filename, bucket_name, project_directory):
         s3_resource = boto3.resource('s3')
         key = project_directory + filename
         s3_resource.Object(bucket_name = bucket_name, key = key).put(Body = pickle_byte_obj)
+
+
+
+def save_pytorch_model_s3(model, model_name, bucket_name, s3_model_path, local_temp = False):
+    
+        model_metadata = {'model_class' : model.__class__,'model_params' : getattr(model, 'model_params'), 'model_state_dict' : model.state_dict()}
+        
+        if local_temp:
+                # Initialize the S3 client
+                s3 = boto3.client('s3')
+
+                # Save the entire model
+                local_model_path = f"{model_name}.pth"
+                torch.save(model_metadata, local_model_path)
+
+                # Upload the model to S3
+                try:
+                        s3.upload_file(local_model_path, bucket_name, s3_model_path)
+                        print(f"Model successfully uploaded to s3://{bucket_name}/{s3_model_path}")
+                except FileNotFoundError:
+                        print("The file was not found")
+                except NoCredentialsError:
+                        print("Credentials not available")
+
+        else:
+                s3 = boto3.client('s3')
+                # Create an in-memory buffer
+                buffer = io.BytesIO()
+
+                # Save the model state dictionary to the buffer
+                torch.save(model_metadata, buffer)
+
+                # Reset buffer position to the beginning
+                buffer.seek(0)
+
+                # Upload the model to S3
+                try:
+                        s3.upload_fileobj(buffer, bucket_name, s3_model_path)
+                        print(f"Model successfully uploaded to s3://{bucket_name}/{s3_model_path}")
+                except NoCredentialsError:
+                        print("Credentials not available")
+                except Exception as e:
+                        print(f"Error uploading the model: {e}")
