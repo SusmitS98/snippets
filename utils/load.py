@@ -1,11 +1,15 @@
 import io
-import joblib
+import pickle
 import boto3
+import gspread
+import joblib
+import torch
 import pandas as pd
+from delta.tables import DeltaTable
+from botocore.exceptions import NoCredentialsError
 
 
 def read_from_s3(filepath, type = 'spark'):
-
         
         if type == 'spark':
                 try:
@@ -31,62 +35,40 @@ def load_object_s3(filename, bucket_name, project_directory):
 
 
 
-def load_pytorch_model_s3(bucket_name, project_directory, local_temp=False):
+def load_pytorch_model_s3(bucket_name, project_directory, model_name, local_temp=False):
 
         s3 = boto3.client('s3')
-        model = None  # Initialize the model to None in case of any issues
-        
+        model = None  
+
         if local_temp:
-                # Download the entire model from S3
-                local_model_path = "churn_model.pth"
+                local_model_path = f"{model_name}.pth"
                 try:
-                s3.download_file(bucket_name, s3_model_path, local_model_path)
-                print(f"Model successfully downloaded from s3://{bucket_name}/{s3_model_path}")
-                
-                model_metadata = torch.load(local_model_path)
-                model_class = model_metadata['model_class']
-                model_params = model_metadata['model_params']
-                model_state_dict = model_metadata['model_state_dict']
-                
-                # Instantiate the model with the passed parameters
-                model = model_class(**model_params)
-                
-                # Load the state dictionary
-                model.load_state_dict(model_state_dict)
-                model.eval()
-                
+                        s3.download_file(bucket_name, s3_model_path, local_model_path)
+                        print(f"Model successfully downloaded from s3://{bucket_name}/{s3_model_path}")
+                        model_metadata = torch.load(local_model_path)
                 except FileNotFoundError:
-                print("The file was not found")
+                        print("The file was not found")
                 except NoCredentialsError:
-                print("Credentials not available")
+                        print("Credentials not available")
                 except Exception as e:
-                print(f"Error loading model: {e}")
-        
+                        print(f"Error loading model: {e}")   
         else:
                 try:
-                # Download the model as an in-memory file object
-                model_buffer = io.BytesIO()
-                s3.download_fileobj(bucket_name, s3_model_path, model_buffer)
-                
-                # Move the buffer's position to the start
-                model_buffer.seek(0)
-                
-                model_metadata = torch.load(model_buffer)
-                model_class = model_metadata['model_class']
-                model_params = model_metadata['model_params']
-                model_state_dict = model_metadata['model_state_dict']
-
-                # Instantiate the model with the passed parameters
-                model = model_class(**model_params)
-                
-                # Load the state dictionary into the model
-                model.load_state_dict(model_state_dict)
-                model.eval()  # Set the model to evaluation mode
-                print("Model loaded directly from S3 into memory")
-                
+                        model_buffer = io.BytesIO()
+                        s3.download_fileobj(bucket_name, s3_model_path, model_buffer)
+                        model_buffer.seek(0)
+                        model_metadata = torch.load(model_buffer)
                 except NoCredentialsError:
-                print("Credentials not available")
+                        print("Credentials not available")
                 except Exception as e:
-                print(f"Error loading model: {e}")
-        
+                        print(f"Error loading model: {e}")
+
+        model_class = model_metadata['model_class']
+        model_params = model_metadata['model_params']
+        model_state_dict = model_metadata['model_state_dict']
+
+        model = model_class(**model_params)
+        model.load_state_dict(model_state_dict)
+        model.eval()
+
         return model

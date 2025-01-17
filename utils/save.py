@@ -1,8 +1,10 @@
-
+import io
 import pickle
 import boto3
-from delta import DeltaTable
-
+import gspread
+import torch
+from delta.tables import DeltaTable
+from botocore.exceptions import NoCredentialsError
 
 def upsert_in_delta(source, 
                     sink, 
@@ -88,14 +90,10 @@ def save_pytorch_model_s3(model, model_name, bucket_name, s3_model_path, local_t
         model_metadata = {'model_class' : model.__class__,'model_params' : getattr(model, 'model_params'), 'model_state_dict' : model.state_dict()}
         
         if local_temp:
-                # Initialize the S3 client
                 s3 = boto3.client('s3')
-
-                # Save the entire model
                 local_model_path = f"{model_name}.pth"
                 torch.save(model_metadata, local_model_path)
 
-                # Upload the model to S3
                 try:
                         s3.upload_file(local_model_path, bucket_name, s3_model_path)
                         print(f"Model successfully uploaded to s3://{bucket_name}/{s3_model_path}")
@@ -106,16 +104,10 @@ def save_pytorch_model_s3(model, model_name, bucket_name, s3_model_path, local_t
 
         else:
                 s3 = boto3.client('s3')
-                # Create an in-memory buffer
                 buffer = io.BytesIO()
-
-                # Save the model state dictionary to the buffer
                 torch.save(model_metadata, buffer)
-
-                # Reset buffer position to the beginning
                 buffer.seek(0)
 
-                # Upload the model to S3
                 try:
                         s3.upload_fileobj(buffer, bucket_name, s3_model_path)
                         print(f"Model successfully uploaded to s3://{bucket_name}/{s3_model_path}")
