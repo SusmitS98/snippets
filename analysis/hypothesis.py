@@ -106,8 +106,8 @@ def two_sample_chi_square_test(data, treatment_colname, control_value, treatment
             result = "Fail to reject null hypothesis: There is no significant relationship between the two categorical variables."
             
         schema = T.StructType([T.StructField('chi2_statistic', T.DoubleType(), True),
-                              T.StructField('p_value', T.DoubleType(), True), 
-                              T.StructField('result', T.StringType(), True)])
+                               T.StructField('p_value', T.DoubleType(), True), 
+                               T.StructField('result', T.StringType(), True)])
 
         df_out = spark.createDataFrame(data = [dict(zip(["chi2_statistic", "p_value", "result"],
                                                         [chi2_stat, p_value, result]))], 
